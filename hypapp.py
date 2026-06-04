@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
-st.set_page_config(page_title="Extractor AUDATEX – Carrocería", page_icon="🔧", layout="wide")
+st.set_page_config(page_title="Extractor MO H&P AUDATEX", page_icon="🔧", layout="wide")
 
 st.markdown("""
 <style>
@@ -475,6 +475,6 @@ with cy:
     csv=pd.DataFrame(rows).to_csv(index=False).encode()
     st.download_button(
         "⬇️ Descargar CSV", data=csv,
-        file_name="partidas_carroceria.csv", mime="text/csv",
+        file_name="partidas_MO H&P.csv", mime="text/csv",
         use_container_width=True,
     )
