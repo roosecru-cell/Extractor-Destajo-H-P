@@ -1,4 +1,4 @@
-# 🔧 Extractor AUDATEX – Carrocería
+# 🔧 Extractor MO Hojalateria y Pintura AUDATEX 
 
 Aplicación web para extraer partidas de **Mano de Obra Hojal/Mecánica** y **Pintura de Carrocería** de reportes PDF generados por AUDATEX / GNP Seguros.
 
