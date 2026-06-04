@@ -24,8 +24,8 @@ st.markdown("""
 
 st.markdown("""
 <div class="main-header">
-  <h1>🔧 Extractor AUDATEX – Carrocería</h1>
-  <p>Extrae partidas de <b>Mano de Obra Hojal/Mecánica</b> y <b>Pintura de Carrocería</b> · Exporta a Excel por N° de Orden</p>
+  <h1>🔧 Extractor MO H&P AUDATEX</h1>
+  <p>Extrae partidas de <b>Mano de Obra H&P</b>
 </div>
 """, unsafe_allow_html=True)
 
