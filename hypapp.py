@@ -6,7 +6,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
-st.set_page_config(page_title="Extractor MO H&P AUDATEX", page_icon="🔧", layout="wide")
+st.set_page_config(page_title="Extractor AUDATEX – Carrocería", page_icon="🔧", layout="wide")
 
 st.markdown("""
 <style>
@@ -24,8 +24,8 @@ st.markdown("""
 
 st.markdown("""
 <div class="main-header">
-  <h1>🔧 Extractor MO H&P AUDATEX</h1>
-  <p>Extrae partidas de <b>Mano de Obra H&P</b>
+  <h1>🔧 Extractor AUDATEX – Carrocería</h1>
+  <p>Extrae partidas de <b>Mano de Obra Hojal/Mecánica</b> y <b>Pintura de Carrocería</b> · Exporta a Excel por N° de Orden</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -61,8 +61,6 @@ def extract_audatex(pdf_bytes: bytes) -> dict:
         s = line.strip()
         def g(pat): m=re.search(pat,line); return m.group(1).strip() if m else None
 
-        if "Referencia Interna:" in line and "num_orden" not in meta:
-            meta["num_orden"]   = g(r'Referencia Interna:\s*(\S+)') or "–"
         if "Número de Expediente:" in line and "expediente" not in meta:
             meta["expediente"]  = g(r'Número de Expediente:\s*(\S+)') or "–"
         if "Número de Reclamo:" in line and "reclamo" not in meta:
@@ -357,7 +355,11 @@ all_data=[]; filenames=[]
 prog = st.progress(0, text="Procesando…")
 for i,f in enumerate(uploaded):
     prog.progress((i+1)/len(uploaded), text=f"Procesando: {f.name}")
-    all_data.append(extract_audatex(f.read()))
+    data = extract_audatex(f.read())
+    # N° Orden = filename without extension
+    import os
+    data["meta"]["num_orden"] = os.path.splitext(f.name)[0]
+    all_data.append(data)
     filenames.append(f.name)
 prog.empty()
 
@@ -475,6 +477,6 @@ with cy:
     csv=pd.DataFrame(rows).to_csv(index=False).encode()
     st.download_button(
         "⬇️ Descargar CSV", data=csv,
-        file_name="partidas_MO H&P.csv", mime="text/csv",
+        file_name="partidas_carroceria.csv", mime="text/csv",
         use_container_width=True,
     )
