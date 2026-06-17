@@ -47,6 +47,60 @@ RE_PIN_TBL = re.compile(r'NR\s+Operaci.+UT\s+Precio', re.I)
 RE_PIN_STP = re.compile(r'^(RESUMEN\s+M\.O|Total\s+de\s+Horas)', re.I)
 SKIP       = {'TOTAL','SUBTOTAL','SUMA','IVA','RESUMEN','PIEZAS'}
 
+# ── Listado de descripciones consideradas MECÁNICA ────────────────────────────
+# Todo lo que NO aparezca en este listado (texto base, sin folio) se clasifica
+# como HOJALATERÍA dentro de la sección "Mano de Obra Hojal/Mecánica".
+MECANICA_TERMS_RAW = [
+    "RIN DL.D.:D+M", "RIN DL.I.:D+M", "RIN DEL.D. REPARAR",
+    "BRAZO SUSPENS.DL.I.INF.:D+M", "LLANTA DL.D.:D+M", "LLANTA DL.I.:D+M",
+    "LLANTA DL.I.:D+M Y BALANCEAR", "RADIADOR:D+M", "RIN DEL.I. REPARAR",
+    "03 17 00 LIQUIDO REFRIG.:VAC-LLENAR", "05 19 00 RIN DL.D.:D+M",
+    "38 17 70 LIQUIDO REFRIG.:VACIAR-RELLENAR", "50 00 ZAX FUNCION GFS/AJUSTES",
+    "AIRE ACONDIC.:VAC-LLENAR", "ALINEACION", "ALINEACION Y BALANCE",
+    "AMORTIG.DL.D.:D+M", "AMORTIG.DL.D.:DESPIEZ-ENSAMB.(DESMONT.)",
+    "AMORTIG.DL.I.:DESPIEZ-ENSAMBLAR(DESMONT)",
+    "AMORTIG.DL.I./D.:DESP-ENSAMB.(DESMONT.)", "AMORTIG.DL.I.CPL.:D+M",
+    "AMORTIG.FACIA DL.:D+M", "ANTICONGELANTE", "ARNES",
+    "ASIST.CAMBIO CARRIL:D+M(TRAB.ADIC.)", "BALANCEO",
+    "BIELETA I.ESTABI.:D+M", "BRAZO SUSPENS.DL.INF.:D+M (LLANTA DESM.)",
+    "CALIPER FRENO DL.I.:SOLT-FIJ.", "CAMARA 360 GRADOS: AJUSTAR",
+    "CARGA DE GAS", "CARGA GAS", "DEPOS.EXPANSION:D+M",
+    "DES-/MONTAR FLUIDO AIRE ACONDIC.", "DES+MON RIN TRA.D.",
+    "ESCANEO AIRBAG", "FILTRO AIRE:D+M", "FLECHA CARDAN DIREC.I.:D+M",
+    "FLECHA MOTRIZ DL.I.CPL.:D+M", "GALON ANTICONGELANTE",
+    "KA) AMORTIG./MANGUETA DL.D.:SOLT-FIJ", "KA) AMORTIG.DL.D.:D+M",
+    "KA) AMORTIG.DL.D./CARROCER.:SOLT.-FIJ",
+    "KA) AMORTIGUADOR/S DL.:D+M TRAB.ADIC.", "KA) LLANTA/LLANTAS:D+M TRAB.ADIC.",
+    "KA) RIN DL.I.:D+M", "LIQUIDO REFRIGERANTE DES+MON/SUSTITUIR",
+    "LIQUIDO REFRIGERANTE REPARAR", "LLANTA DL.D.:D+M(LLANTA DESMONT.)",
+    "LLANTA DL.D.:MONTAR/BALANCEAR", "LLANTA Y/O RIN(ES):D+M",
+    "PROG SENSOR RADAR", "R RIN DEL DER", "R RIN DEL IZQ",
+    "RADIADOR EGR:D+M", "REC.RODAM.DL.D.:D+M", "REFRIGERANTE A.ACOND REPARAR",
+    "REP ARNES SENSO REVE", "RESONADOR INF. REPARAR", "RIN TRA.D. REPARAR",
+    "ROTULA BIELETA DIREC.I.:D+M", "ROTULA SOP.DL.I.:SOLT-FIJ",
+    "SENSOR BOLSA AIRE DL.:D+M", "SENSOR TR.CN.ASIST.ESTAC.:D+M",
+    "SOP.D.RADIADOR:SUST.", "VA) BRAZO SUSPENS.DL.D.:D+M",
+    "VA) BRAZO SUSPENS.DL.I./D.:D+M TRAB.ADIC.", "VA) LLANTA DL.D.:BALANCEAR",
+    "VA) PUNTA BIELETA DIREC.:D+M TRAB.ADIC.", "VA) ROTULA BIELETA DIREC.D.:D+M",
+    "VALV.PRESION DEL.I. REPARAR",
+]
+
+def _normalize_desc(s: str) -> str:
+    """Uppercase, strip, and remove a trailing long numeric folio (8+ digits)
+    whether it's space-separated or glued to the preceding text."""
+    s = s.strip().upper()
+    s = re.sub(r'\d{8,}\s*$', '', s)
+    s = s.strip()
+    s = re.sub(r'\s+', ' ', s)
+    return s
+
+MECANICA_SET = {_normalize_desc(t) for t in MECANICA_TERMS_RAW}
+
+def clasificar_mo(descripcion: str) -> str:
+    """Devuelve 'Mecánica' si la descripción coincide con el listado,
+    de lo contrario 'Hojalatería'."""
+    return "Mecánica" if _normalize_desc(descripcion) in MECANICA_SET else "Hojalatería"
+
 
 def extract_audatex(pdf_bytes: bytes) -> dict:
     mo_items, pin_items, meta = [], [], {}
@@ -145,12 +199,16 @@ def extract_audatex(pdf_bytes: bytes) -> dict:
             if RE_PIN_HDR.match(s): state = PIN_WAIT; continue
             mt = RE_TIEMPO.match(s)
             if mt:
-                mo_items.append({"nr": "", "descripcion": mt.group(1).strip(),
-                                 "precio": parse_price(mt.group(2))}); continue
+                desc = mt.group(1).strip()
+                mo_items.append({"nr": "", "descripcion": desc,
+                                 "precio": parse_price(mt.group(2)),
+                                 "categoria": clasificar_mo(desc)}); continue
             m = RE_ITEM.match(s)
             if m and m.group(1).upper() not in SKIP:
-                mo_items.append({"nr": m.group(1), "descripcion": m.group(2).strip(),
-                                 "precio": parse_price(m.group(3))})
+                desc = m.group(2).strip()
+                mo_items.append({"nr": m.group(1), "descripcion": desc,
+                                 "precio": parse_price(m.group(3)),
+                                 "categoria": clasificar_mo(desc)})
 
     return {"mo": mo_items, "pintura": pin_items, "meta": meta}
 
@@ -247,8 +305,9 @@ def build_excel(all_data: list, filenames: list) -> bytes:
         for i, item in enumerate(mo):
             ws.row_dimensions[row].height = 16
             fill = MO_FILL if i%2==0 else MO_ALT
+            categoria = item.get("categoria", "Hojalatería")
             ws.cell(row,1,n_ord).alignment=CTR
-            ws.cell(row,2,"Mano de Obra Hojal/Mecánica").alignment=LFT
+            ws.cell(row,2,categoria).alignment=LFT
             ws.cell(row,3,item["nr"]).alignment=CTR
             ws.cell(row,4,item["descripcion"]).alignment=LFT
             p=ws.cell(row,5,item["precio"]); p.number_format=MONEY; p.alignment=RGT
@@ -399,13 +458,16 @@ for fname,data in zip(filenames,all_data):
         with c1:
             st.markdown("**🔵 Mano de Obra Hojal/Mecánica**")
             if mo:
-                df=pd.DataFrame(mo)
+                df=pd.DataFrame(mo)[["nr","categoria","descripcion","precio"]]
                 df.insert(0,"N° Orden",n_ord)
-                df.insert(1,"Sección","Mano de Obra")
-                df.columns=["N° Orden","Sección","NR/Pos.","Trabajo","Precio ($)"]
+                df.columns=["N° Orden","NR/Pos.","Sección","Trabajo","Precio ($)"]
+                df=df[["N° Orden","Sección","NR/Pos.","Trabajo","Precio ($)"]]
                 df["Precio ($)"]=df["Precio ($)"].map("${:,.2f}".format)
                 st.dataframe(df,use_container_width=True,hide_index=True)
                 t=meta.get("total_mo",sum(x["precio"] for x in mo))
+                n_mec = sum(1 for x in mo if x.get("categoria")=="Mecánica")
+                n_hoj = len(mo) - n_mec
+                st.caption(f"🔧 Mecánica: {n_mec} partidas  ·  🛠️ Hojalatería: {n_hoj} partidas")
                 st.success(f"**Total M.O.: ${t:,.2f}**")
             else:
                 st.warning("No se encontraron partidas.")
@@ -456,7 +518,7 @@ with cy:
     for fname,data in zip(filenames,all_data):
         n_ord=data["meta"].get("num_orden","–")
         for e in data["mo"]:
-            rows.append({"N° Orden":n_ord,"Sección":"Mano de Obra",
+            rows.append({"N° Orden":n_ord,"Sección":e.get("categoria","Hojalatería"),
                          "NR/Pos.":e["nr"],"Descripción":e["descripcion"],"Precio":e["precio"]})
         for e in data["pintura"]:
             rows.append({"N° Orden":n_ord,"Sección":"Pintura",
